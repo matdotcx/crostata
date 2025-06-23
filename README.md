@@ -175,6 +175,48 @@ tart run [vm-name] --no-graphics --vnc
 tart ip [vm-name]
 ```
 
+### Running VM in Background
+```bash
+# Option 1: Using nohup
+nohup tart run [vm-name] --no-graphics > /dev/null 2>&1 &
+
+# Option 2: Using disown
+tart run [vm-name] --no-graphics &
+disown
+
+# Option 3: Using launchd (persistent across reboots)
+cat > ~/Library/LaunchAgents/com.tart.[vm-name].plist << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.tart.[vm-name]</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/tart</string>
+        <string>run</string>
+        <string>[vm-name]</string>
+        <string>--no-graphics</string>
+    </array>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>/tmp/tart-[vm-name].log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/tart-[vm-name].error.log</string>
+</dict>
+</plist>
+EOF
+
+# Load and start
+launchctl load ~/Library/LaunchAgents/com.tart.[vm-name].plist
+launchctl start com.tart.[vm-name]
+
+# To stop: launchctl stop com.tart.[vm-name]
+# To remove: launchctl unload ~/Library/LaunchAgents/com.tart.[vm-name].plist
+```
+
 ## Security Features
 
 ### Credential Management
