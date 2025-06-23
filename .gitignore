@@ -1,0 +1,38 @@
+# Sensitive credential files
+*.pkrvars.hcl
+*.auto.pkrvars.hcl
+*-credentials.*
+*-secrets.*
+
+# Environment files
+.env
+.env.*
+
+# Packer cache and artifacts
+packer_cache/
+output-*/
+.packer/
+
+# macOS specific
+.DS_Store
+._*
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build logs
+packer-build-*.log
+build-output-*.txt
+
+# SSH keys (should be in 1Password)
+*.pem
+*.key
+id_rsa*
+
+# Vim/editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
