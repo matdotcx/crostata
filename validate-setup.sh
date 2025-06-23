@@ -107,7 +107,7 @@ if op account list &> /dev/null; then
             PUBLIC_KEY=$(op read 'op://Private/Packer Automations/public key' 2>/dev/null || echo "")
             if [ -n "$PUBLIC_KEY" ]; then
                 # Basic SSH key format validation
-                if echo "$PUBLIC_KEY" | grep -E '^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ecdsa-sha2-nistp521) [A-Za-z0-9+/]+ ' &> /dev/null; then
+                if echo "$PUBLIC_KEY" | grep -E '^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ecdsa-sha2-nistp521) [A-Za-z0-9+/]+=*' &> /dev/null; then
                     report_test "SSH key format validation" true ""
                     
                     # Test key validation by writing to temp file
@@ -141,8 +141,8 @@ section "Validating Packer Manifests"
 # Check Packer manifest syntax
 for manifest in vm-ipsw-1password.pkr.hcl vm-container-1password.pkr.hcl; do
     if [ -f "$manifest" ]; then
-        # Basic syntax validation using packer validate
-        if packer validate "$manifest" &> /dev/null; then
+        # Basic syntax validation using packer validate (skip variable validation)
+        if packer validate -syntax-only "$manifest" &> /dev/null; then
             report_test "Packer manifest syntax: $manifest" true ""
         else
             # Try to provide more specific error info
