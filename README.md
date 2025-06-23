@@ -63,16 +63,27 @@ op item create \
 
 ## Available Manifests
 
+### vm-vanilla-custom-user.pkr.hcl (Vanilla with Custom User) - **Recommended**
+- **Source**: `ghcr.io/cirruslabs/macos-sequoia-vanilla:latest`
+- **Setup**: Connects with default credentials, creates custom user, removes default
+- **Features**: Clean vanilla macOS with only your custom user
+- **Default**: Used by `build-with-1password.sh`
+- **Benefits**: 
+  - No leftover default accounts
+  - Clean system without Homebrew or development tools
+  - Fast build time (5-10 minutes)
+  - Most secure approach
+
 ### vm-ipsw-1password.pkr.hcl (IPSW-based)
 - **Source**: Downloads macOS IPSW files (latest by default)
 - **Setup**: Automated macOS Setup Assistant walkthrough
 - **Features**: Clean macOS installation with custom user account
-- **Default**: Used by `build-with-1password.sh`
+- **Build time**: 15-30 minutes
 
 ### vm-container-1password.pkr.hcl (Container-based)
 - **Source**: `ghcr.io/cirruslabs/macos-sequoia-vanilla:latest`
 - **Setup**: Quick setup on pre-installed macOS
-- **Features**: Optimized for development workflows with 1Password security
+- **Features**: Keeps default admin user alongside custom user
 
 ## Quick Start
 
@@ -80,7 +91,7 @@ op item create \
 ```bash
 ./build-with-1password.sh
 ```
-Creates a VM named `custom-vm` using `vm-ipsw-1password.pkr.hcl` manifest. Environment validation runs automatically first.
+Creates a VM named `custom-vm` using `vm-vanilla-custom-user.pkr.hcl` manifest. Environment validation runs automatically first.
 
 ### Manual Validation
 ```bash
@@ -96,7 +107,8 @@ Creates a VM named `custom-vm` using `vm-ipsw-1password.pkr.hcl` manifest. Envir
 
 Examples:
 ```bash
-./build-with-1password.sh vm-ipsw-1password.pkr.hcl dev-vm
+./build-with-1password.sh vm-vanilla-custom-user.pkr.hcl dev-vm
+./build-with-1password.sh vm-ipsw-1password.pkr.hcl fresh-vm
 ./build-with-1password.sh vm-container-1password.pkr.hcl test-vm
 ```
 
@@ -178,19 +190,19 @@ tart ip [vm-name]
 
 ## Manifest Comparison
 
-| Feature | vm-ipsw-1password.pkr.hcl | vm-container-1password.pkr.hcl |
-|---------|---------------------------|--------------------------------|
-| Base Source | IPSW | GHCR Container |
-| Setup Process | Automated macOS | Quick |
-| Credentials | 1Password | 1Password |
-| SSH Setup | Automated | Manual |
-| VNC Setup | Automated | Manual |
-| Auto-login | Yes | No |
-| Boot Time | Longer (full install) | Faster (pre-installed) |
-| Disk Usage | More space (fresh install) | Less space (optimized) |
-| Build Time | ~15-30 minutes | ~5-10 minutes |
-| Reliability | High (clean OS install) | Medium (dependency on GHCR) |
-| Best For | Clean environments, testing | Quick dev iteration |
+| Feature | vm-vanilla-custom-user.pkr.hcl | vm-ipsw-1password.pkr.hcl | vm-container-1password.pkr.hcl |
+|---------|--------------------------------|---------------------------|--------------------------------|
+| Base Source | GHCR Container | IPSW | GHCR Container |
+| Setup Process | Replace default user | Automated macOS | Keep default user |
+| Default User | **Removed completely** | Never created | Kept alongside custom |
+| Credentials | 1Password | 1Password | 1Password |
+| SSH Setup | Automated | Automated | Manual |
+| VNC Setup | Automated | Automated | Manual |
+| Homebrew | **Not installed** | Not installed | Not installed |
+| Boot Time | Fast | Longer (full install) | Fast |
+| Build Time | ~5-10 minutes | ~15-30 minutes | ~5-10 minutes |
+| Security | **Highest** (single user) | High (clean OS) | Medium (dual users) |
+| Best For | **Production, secure envs** | Clean testing | Quick dev iteration |
 
 ## Troubleshooting
 
@@ -231,7 +243,8 @@ Packer provides detailed logs during build. Monitor output for specific error me
 ├── .gitignore                       # Security-focused git excludes
 ├── validate-setup.sh                # Pre-build environment validation script
 ├── build-with-1password.sh          # Main build script with 1Password integration
-├── vm-ipsw-1password.pkr.hcl        # IPSW-based VM manifest (default)
+├── vm-vanilla-custom-user.pkr.hcl   # Vanilla VM with custom user only (default)
+├── vm-ipsw-1password.pkr.hcl        # IPSW-based VM manifest (clean install)
 ├── vm-container-1password.pkr.hcl   # Container-based VM with 1Password
 └── vm-config.pkrvars.hcl            # Configuration variables (non-sensitive only)
 ```

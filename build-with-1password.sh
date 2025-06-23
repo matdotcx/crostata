@@ -6,10 +6,15 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 # Configuration
-PACKER_FILE="${1:-vm-ipsw-1password.pkr.hcl}"
+PACKER_FILE="${1:-vm-vanilla-custom-user.pkr.hcl}"  # Default to vanilla with custom user
 VM_NAME="${2:-custom-vm}"
 echo -e "${GREEN}🔐 Tart VM Builder with 1Password${NC}"
 echo "=================================="
+echo "Usage: $0 [packer-file] [vm-name]"
+echo "  packer-file: vm-vanilla-custom-user.pkr.hcl (default, recommended)"
+echo "               vm-container-1password.pkr.hcl (vanilla, keeps default user)"
+echo "               vm-ipsw-1password.pkr.hcl (fresh install, less reliable)"
+echo ""
 # Run validation first
 echo -e "${YELLOW}Running environment validation...${NC}"
 if ! ./validate-setup.sh --silent; then
@@ -33,6 +38,10 @@ packer init "$PACKER_FILE"
 # Build the VM
 echo -e "\n${YELLOW}Building VM: $VM_NAME${NC}"
 echo "This may take several minutes..."
+
+# Enable verbose Packer logging
+export PACKER_LOG=1
+
 if packer build \
     -var "vm_name=$VM_NAME" \
     "$PACKER_FILE"; then

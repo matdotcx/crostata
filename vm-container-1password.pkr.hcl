@@ -68,6 +68,9 @@ source "tart-cli" "custom_vm" {
   ssh_username = var.ssh_username
   ssh_password = var.ssh_password
   ssh_timeout  = "120s"
+  
+  # Headless mode - no GUI window
+  headless = true
 }
 
 # Build configuration

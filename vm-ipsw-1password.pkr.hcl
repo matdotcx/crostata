@@ -71,58 +71,84 @@ source "tart-cli" "custom_vm" {
 
   ssh_username = var.ssh_username
   ssh_password = var.ssh_password
-  ssh_timeout  = "300s"
+  ssh_timeout  = "1200s"  # 20 minutes for IPSW setup
+  
+  # Headless mode - no GUI window
+  headless = true
+  
+  # Boot timing configuration
+  boot_wait = "180s"  # Wait 3 minutes for initial boot
+  boot_key_interval = "50ms"  # Slower typing speed for reliability
 
   # Automated macOS setup from IPSW
   boot_command = [
-    # Wait for boot
-    "<wait60s><spacebar>",
+    # Wake the screen after boot_wait completes
+    "<spacebar><wait10s>",
 
-    # Language selection
-    "<wait5s><enter>",
+    # Language selection (English) - just press Enter for default
+    "<enter><wait10s>",
 
-    # Country/Region
-    "<wait5s>united states<enter>",
+    # Country/Region - Type United States
+    "united states<wait2s><enter><wait10s>",
 
-    # Written and spoken languages
-    "<wait5s><tab><spacebar>",
+    # Written and spoken languages - Continue
+    "<tab><wait1s><spacebar><wait10s>",
 
-    # Accessibility
-    "<wait5s><tab><spacebar>",
+    # Accessibility - Not Now
+    "<tab><wait1s><spacebar><wait10s>",
 
-    # Data & Privacy
-    "<wait10s><tab><spacebar>",
+    # Data & Privacy - Continue
+    "<tab><wait1s><spacebar><wait15s>",
 
-    # Migration Assistant
-    "<wait5s><tab><tab><tab><spacebar>",
+    # Migration Assistant - Not Now
+    "<tab><wait1s><tab><wait1s><tab><wait1s><spacebar><wait10s>",
 
-    # Sign in with Apple ID (skip)
-    "<wait5s><tab><tab><spacebar>",
+    # Sign in with Apple ID - Set Up Later
+    "<tab><wait1s><tab><wait1s><spacebar><wait10s>",
+    
+    # Skip Apple ID confirmation
+    "<tab><wait1s><spacebar><wait10s>",
 
-    # Terms and Conditions
-    "<wait5s><tab><spacebar><wait5s><tab><spacebar>",
+    # Terms and Conditions - Agree
+    "<tab><wait1s><spacebar><wait5s>",
+    
+    # Terms and Conditions - Agree again
+    "<tab><wait1s><spacebar><wait10s>",
 
-    # Create user account - using variables from 1Password
-    "<wait5s>${var.ssh_username}<tab>",
-    "${var.ssh_username}<tab>",
-    "${var.ssh_password}<tab>",
-    "${var.ssh_password}<tab>",
-    "<tab><tab><spacebar>",
+    # Create user account
+    "${var.ssh_username}<wait1s><tab><wait1s>",
+    "${var.ssh_username}<wait1s><tab><wait1s>",
+    "${var.ssh_password}<wait1s><tab><wait1s>",
+    "${var.ssh_password}<wait1s><tab><wait1s>",
+    "<tab><wait1s><tab><wait1s><spacebar><wait15s>",
 
-    # Analytics (skip)
-    "<wait10s><tab><tab><tab><tab><spacebar>",
+    # Analytics - Not Now
+    "<tab><wait1s><tab><wait1s><tab><wait1s><tab><wait1s><spacebar><wait10s>",
 
-    # Screen Time (skip)
-    "<wait5s><tab><spacebar>",
+    # Screen Time - Set Up Later
+    "<tab><wait1s><spacebar><wait10s>",
 
-    # Siri (skip)
-    "<wait5s><tab><tab><spacebar>",
+    # Siri - Not Now
+    "<tab><wait1s><tab><wait1s><spacebar><wait10s>",
 
-    # Choose Look
-    "<wait5s><tab><spacebar>",
+    # Choose Look - Continue with default
+    "<tab><wait1s><spacebar><wait30s>",
 
-    # Setup complete
-    "<wait30s>"
+    # Wait for desktop to fully load
+    "<wait60s>",
+    
+    # Open Spotlight
+    "<cmd><spacebar><wait3s>",
+    
+    # Open Terminal
+    "terminal<wait2s><enter><wait10s>",
+    
+    # Enable SSH (Remote Login)
+    "sudo systemsetup -setremotelogin on<wait1s><enter><wait3s>",
+    "${var.ssh_password}<wait1s><enter><wait5s>",
+    
+    # Close Terminal
+    "<cmd>q<wait2s>"
   ]
 }
 
