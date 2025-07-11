@@ -26,94 +26,177 @@ variable "ssh_public_key" {
 variable "base_image" {
   type        = string
   description = "Base VM image to use"
-  default     = "ghcr.io/cirruslabs/macos-sequoia-vanilla:latest"
+  default     = null  # Will be loaded from config
 }
 
 variable "cpu_count" {
   type        = number
   description = "Number of CPU cores"
-  default     = 4
+  default     = null  # Will be loaded from config
 }
 
 variable "memory_gb" {
   type        = number
   description = "Memory in GB"
-  default     = 8
+  default     = null  # Will be loaded from config
 }
 
 variable "disk_size_gb" {
   type        = number
   description = "Disk size in GB"
-  default     = 50
+  default     = null  # Will be loaded from config
 }
 
-# Packer configuration
+variable "ssh_timeout" {
+  type        = string
+  description = "SSH connection timeout"
+  default     = null  # Will be loaded from config
+}
+
+variable "system_settle_delay" {
+  type        = number
+  description = "Delay for system to settle"
+  default     = null  # Will be loaded from config
+}
+
+variable "initial_wait" {
+  type        = number
+  description = "Initial wait time"
+  default     = null  # Will be loaded from config
+}
+
+variable "connection_retry_delay" {
+  type        = number
+  description = "Connection retry delay"
+  default     = null  # Will be loaded from config
+}
+
+# Enhanced Packer configuration with standardized plugin versions
 packer {
   required_plugins {
     tart = {
-      version = ">= 0.5.3"
-      source  = "github.com/cirruslabs/tart"
+      version = var.tart_version != null ? var.tart_version : ">= 0.5.3"
+      source  = var.tart_source != null ? var.tart_source : "github.com/cirruslabs/tart"
     }
   }
 }
 
-# Source configuration - connect with default admin/admin credentials
+variable "tart_version" {
+  type        = string
+  description = "Tart plugin version constraint"
+  default     = null  # Will be loaded from config
+}
+
+variable "tart_source" {
+  type        = string
+  description = "Tart plugin source"
+  default     = null  # Will be loaded from config
+}
+
+# Enhanced source configuration with robust connection handling
 source "tart-cli" "custom_vm" {
-  vm_base_name = var.base_image
+  vm_base_name = var.base_image != null ? var.base_image : "ghcr.io/cirruslabs/macos-sequoia-vanilla:latest"
   vm_name      = var.vm_name
-  cpu_count    = var.cpu_count
-  memory_gb    = var.memory_gb
-  disk_size_gb = var.disk_size_gb
+  cpu_count    = var.cpu_count != null ? var.cpu_count : 4
+  memory_gb    = var.memory_gb != null ? var.memory_gb : 8
+  disk_size_gb = var.disk_size_gb != null ? var.disk_size_gb : 50
   
-  # Use default credentials from vanilla image
-  ssh_username = "admin"
-  ssh_password = "admin"
-  ssh_timeout  = "120s"
+  # Enhanced SSH configuration with retry logic
+  ssh_username = var.default_username != null ? var.default_username : "admin"
+  ssh_password = var.default_password != null ? var.default_password : "admin"
+  ssh_timeout  = var.ssh_timeout != null ? var.ssh_timeout : "120s"
+  ssh_handshake_attempts = 5
+  ssh_keep_alive_interval = "5s"
   
   # Headless mode - no GUI window
-  headless = true
+  headless = var.headless_mode != null ? var.headless_mode : true
+}
+
+variable "default_username" {
+  type        = string
+  description = "Default username in vanilla image"
+  default     = null  # Will be loaded from config
+}
+
+variable "default_password" {
+  type        = string
+  description = "Default password in vanilla image"
+  default     = null  # Will be loaded from config
+}
+
+variable "headless_mode" {
+  type        = bool
+  description = "Run VM in headless mode"
+  default     = null  # Will be loaded from config
 }
 
 # Build configuration
 build {
   sources = ["source.tart-cli.custom_vm"]
   
-  # Wait for system to settle
+  # Enhanced system settling with validation
   provisioner "shell" {
-    inline = ["sleep 10"]
+    max_retries = 2
+    timeout     = "30s"
+    
+    inline = [
+      "echo 'Waiting for system to settle...'",
+      "sleep ${var.system_settle_delay != null ? var.system_settle_delay : 10}",
+      "echo 'System settle delay complete'",
+      "uptime",
+      "echo 'System ready for user creation'"
+    ]
   }
   
-  # Create new admin user with our credentials
+  # Enhanced new admin user creation with validation
   provisioner "shell" {
+    max_retries = 2
+    timeout     = "120s"
+    
     inline = [
       "echo 'Creating new admin user: ${var.ssh_username}'",
+      
+      # Validate user doesn't already exist
+      "if dscl . -read /Users/${var.ssh_username} 2>/dev/null; then",
+      "  echo 'User ${var.ssh_username} already exists, skipping creation'",
+      "  exit 0",
+      "fi",
       
       # Find next available UID (starting from 501)
       "NEXT_UID=$(dscl . -list /Users UniqueID | awk '{print $2}' | sort -n | tail -1)",
       "NEXT_UID=$((NEXT_UID + 1))",
+      "echo \"Using UID: $NEXT_UID\"",
       
-      # Create the new user account
-      "sudo dscl . -create /Users/${var.ssh_username}",
+      # Create the new user account with validation
+      "sudo dscl . -create /Users/${var.ssh_username} || (echo 'User creation failed' && exit 1)",
       "sudo dscl . -create /Users/${var.ssh_username} UserShell /bin/zsh",
       "sudo dscl . -create /Users/${var.ssh_username} RealName '${var.ssh_username}'",
       "sudo dscl . -create /Users/${var.ssh_username} UniqueID $NEXT_UID",
       "sudo dscl . -create /Users/${var.ssh_username} PrimaryGroupID 20",
       "sudo dscl . -create /Users/${var.ssh_username} NFSHomeDirectory /Users/${var.ssh_username}",
       
-      # Set password
-      "sudo dscl . -passwd /Users/${var.ssh_username} '${var.ssh_password}'",
+      # Set password with validation
+      "sudo dscl . -passwd /Users/${var.ssh_username} '${var.ssh_password}' || (echo 'Password setting failed' && exit 1)",
       
-      # Create home directory
+      # Create home directory with proper permissions
       "sudo mkdir -p /Users/${var.ssh_username}",
       "sudo chown -R ${var.ssh_username}:staff /Users/${var.ssh_username}",
+      "sudo chmod 755 /Users/${var.ssh_username}",
       
-      # Add to admin group
+      # Add to admin group with validation
       "sudo dscl . -append /Groups/admin GroupMembership ${var.ssh_username}",
+      "dscl . -read /Groups/admin GroupMembership | grep -q ${var.ssh_username} || (echo 'Admin group assignment failed' && exit 1)",
       
-      # Enable passwordless sudo for new user
+      # Enhanced passwordless sudo configuration
+      "sudo mkdir -p /etc/sudoers.d",
       "echo '${var.ssh_username} ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/${var.ssh_username}",
+      "sudo chmod 440 /etc/sudoers.d/${var.ssh_username}",
+      "sudo visudo -c || (echo 'Sudoers validation failed' && exit 1)",
       
-      "echo 'New admin user created successfully'"
+      # Verify user was created successfully
+      "dscl . -read /Users/${var.ssh_username} || (echo 'User verification failed' && exit 1)",
+      
+      "echo 'New admin user created and validated successfully'"
     ]
   }
   
@@ -177,7 +260,7 @@ build {
       }
     }
     
-    pause_before = "5s"  # Give system time to settle
+    pause_before = "${var.connection_retry_delay != null ? var.connection_retry_delay : 5}s"  # Give system time to settle
     
     inline = [
       "echo 'Connected as new user: ${var.ssh_username}'",

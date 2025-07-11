@@ -1,0 +1,134 @@
+# Crostata VM Builder Configuration
+# This file contains all configurable values for the Tart VM builder
+
+[onepassword]
+# 1Password vault and item configuration
+vault = "Private"
+item = "Packer Automations"
+
+# Field names within the 1Password item
+username_field = "username"
+password_field = "password"
+public_key_field = "public key"
+
+[vm.defaults]
+# Default VM configuration
+name = "custom-vm"
+cpu_count = 4
+memory_gb = 8
+disk_size_gb = 50
+
+[vm.vanilla]
+# Vanilla VM configuration (uses existing image)
+base_image = "ghcr.io/cirruslabs/macos-sequoia-vanilla:latest"
+default_username = "admin"
+default_password = "admin"
+
+[vm.ipsw]
+# IPSW VM configuration (fresh install)
+url = "latest"  # Can be "latest", URL, or local path
+# Example URLs:
+# url = "https://updates.cdn-apple.com/2025SpringFCS/fullrestores/082-16517/AACDDC33-9683-4431-98AF-F04EF7C15EE3/UniversalMac_15.4_24E248_Restore.ipsw"
+# url = "~/Downloads/UniversalMac_15.4_24E248_Restore.ipsw"
+
+[packer]
+# Packer plugin versions
+tart_version_vanilla = ">= 0.5.3"
+tart_version_ipsw = ">= 1.12.0"
+tart_source = "github.com/cirruslabs/tart"
+
+# Packer logging
+log_level = "1"  # Set to "0" to disable verbose logging
+
+[ssh]
+# SSH connection settings
+timeout_vanilla = "120s"
+timeout_ipsw = "1200s"  # 20 minutes for IPSW setup
+timeout_container = "120s"
+
+[timing]
+# Various timing configurations for automation
+
+# General sleep/wait times
+system_settle_delay = 10
+initial_wait = 30
+connection_retry_delay = 5
+
+# IPSW boot automation timing
+boot_wait = "180s"  # Wait 3 minutes for initial boot
+boot_key_interval = "50ms"  # Slower typing for reliability
+screen_wake_delay = "10s"
+language_delay = "10s"
+country_delay = "10s"
+accessibility_delay = "10s"
+privacy_delay = "15s"
+migration_delay = "10s"
+apple_id_delay = "10s"
+terms_delay = "5s"
+user_creation_delay = "15s"
+analytics_delay = "10s"
+screen_time_delay = "10s"
+siri_delay = "10s"
+appearance_delay = "30s"
+desktop_load_delay = "60s"
+spotlight_delay = "3s"
+terminal_delay = "2s"
+terminal_open_delay = "10s"
+ssh_enable_delay = "5s"
+command_delay = "1s"
+
+[system]
+# System configuration settings
+
+# Power management
+disable_sleep = true
+disable_disk_sleep = true
+disable_display_sleep = true
+
+# System features
+disable_spotlight = true
+disable_screen_saver = true
+disable_auto_updates = true
+enable_auto_login = true  # For IPSW builds
+enable_passwordless_sudo = true
+
+# Remote access
+enable_ssh = true
+enable_vnc = true
+
+[paths]
+# System paths and commands
+ard_agent = "/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart"
+launchd_overrides = "/var/db/launchd.db/com.apple.launchd/overrides.plist"
+screen_sharing_plist = "/System/Library/LaunchDaemons/com.apple.screensharing.plist"
+sudoers_dir = "/etc/sudoers.d"
+software_update_prefs = "/Library/Preferences/com.apple.SoftwareUpdate"
+login_window_prefs = "/Library/Preferences/com.apple.loginwindow"
+
+[validation]
+# Environment validation settings
+min_disk_space_gb = 50
+min_memory_gb = 8
+required_macos_version = 13
+required_tools = ["op", "packer", "tart", "ssh-keygen", "jq"]
+
+[build]
+# Build script configuration
+default_packer_file = "vm-vanilla-custom-user.pkr.hcl"
+headless_mode = true
+enable_vnc_headless = true
+
+# Error recovery settings
+enable_error_recovery = true
+retry_max_attempts = 3
+retry_base_delay = 2
+
+# Color output settings
+colors = true
+verbose_validation = false
+
+[build.packer_files]
+# Available Packer files and their descriptions
+vanilla_custom = { file = "vm-vanilla-custom-user.pkr.hcl", description = "vanilla, keeps default user, enhanced reliability" }
+container = { file = "vm-container-1password.pkr.hcl", description = "vanilla, keeps default user, enhanced reliability" }
+ipsw = { file = "vm-ipsw-1password.pkr.hcl", description = "fresh install, significantly improved reliability" }

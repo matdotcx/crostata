@@ -1,0 +1,322 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Crostata VM Builder Configuration Schema",
+  "description": "JSON schema for validating crostata configuration files",
+  "type": "object",
+  "required": ["onepassword", "vm", "packer", "ssh", "timing", "system", "paths", "validation", "build"],
+  "properties": {
+    "onepassword": {
+      "type": "object",
+      "required": ["vault", "item", "username_field", "password_field", "public_key_field"],
+      "properties": {
+        "vault": {
+          "type": "string",
+          "minLength": 1,
+          "description": "1Password vault name"
+        },
+        "item": {
+          "type": "string",
+          "minLength": 1,
+          "description": "1Password item name"
+        },
+        "username_field": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Field name for username in 1Password item"
+        },
+        "password_field": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Field name for password in 1Password item"
+        },
+        "public_key_field": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Field name for public key in 1Password item"
+        }
+      }
+    },
+    "vm": {
+      "type": "object",
+      "required": ["defaults", "vanilla", "ipsw"],
+      "properties": {
+        "defaults": {
+          "type": "object",
+          "required": ["name", "cpu_count", "memory_gb", "disk_size_gb"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "description": "Default VM name (alphanumeric, underscore, hyphen only)"
+            },
+            "cpu_count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64,
+              "description": "Number of CPU cores"
+            },
+            "memory_gb": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 256,
+              "description": "Memory in GB"
+            },
+            "disk_size_gb": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 2048,
+              "description": "Disk size in GB"
+            }
+          }
+        },
+        "vanilla": {
+          "type": "object",
+          "required": ["base_image", "default_username", "default_password"],
+          "properties": {
+            "base_image": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Base VM image to use for vanilla builds"
+            },
+            "default_username": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Default username in vanilla image"
+            },
+            "default_password": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Default password in vanilla image"
+            }
+          }
+        },
+        "ipsw": {
+          "type": "object",
+          "required": ["url"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "minLength": 1,
+              "description": "IPSW URL, local path, or 'latest'"
+            }
+          }
+        }
+      }
+    },
+    "packer": {
+      "type": "object",
+      "required": ["tart_version_vanilla", "tart_version_ipsw", "tart_source", "log_level"],
+      "properties": {
+        "tart_version_vanilla": {
+          "type": "string",
+          "pattern": "^>= [0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "Tart plugin version constraint for vanilla builds"
+        },
+        "tart_version_ipsw": {
+          "type": "string",
+          "pattern": "^>= [0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "Tart plugin version constraint for IPSW builds"
+        },
+        "tart_source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Tart plugin source"
+        },
+        "log_level": {
+          "type": "string",
+          "enum": ["0", "1"],
+          "description": "Packer log level (0=quiet, 1=verbose)"
+        }
+      }
+    },
+    "ssh": {
+      "type": "object",
+      "required": ["timeout_vanilla", "timeout_ipsw", "timeout_container"],
+      "properties": {
+        "timeout_vanilla": {
+          "type": "string",
+          "pattern": "^[0-9]+[smh]$",
+          "description": "SSH timeout for vanilla builds"
+        },
+        "timeout_ipsw": {
+          "type": "string",
+          "pattern": "^[0-9]+[smh]$",
+          "description": "SSH timeout for IPSW builds"
+        },
+        "timeout_container": {
+          "type": "string",
+          "pattern": "^[0-9]+[smh]$",
+          "description": "SSH timeout for container builds"
+        }
+      }
+    },
+    "timing": {
+      "type": "object",
+      "required": ["system_settle_delay", "initial_wait", "connection_retry_delay"],
+      "properties": {
+        "system_settle_delay": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300,
+          "description": "Delay for system to settle (seconds)"
+        },
+        "initial_wait": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300,
+          "description": "Initial wait time (seconds)"
+        },
+        "connection_retry_delay": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60,
+          "description": "Delay between connection retries (seconds)"
+        },
+        "boot_wait": {
+          "type": "string",
+          "pattern": "^[0-9]+[smh]$",
+          "description": "Boot wait time for IPSW"
+        },
+        "boot_key_interval": {
+          "type": "string",
+          "pattern": "^[0-9]+ms$",
+          "description": "Interval between keystrokes during boot"
+        }
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {"type": "string", "pattern": "^[0-9]+[smh]$"},
+          {"type": "integer", "minimum": 0}
+        ]
+      }
+    },
+    "system": {
+      "type": "object",
+      "required": ["disable_sleep", "disable_disk_sleep", "disable_display_sleep", "disable_spotlight", "disable_screen_saver", "disable_auto_updates", "enable_auto_login", "enable_passwordless_sudo", "enable_ssh", "enable_vnc"],
+      "properties": {
+        "disable_sleep": {"type": "boolean"},
+        "disable_disk_sleep": {"type": "boolean"},
+        "disable_display_sleep": {"type": "boolean"},
+        "disable_spotlight": {"type": "boolean"},
+        "disable_screen_saver": {"type": "boolean"},
+        "disable_auto_updates": {"type": "boolean"},
+        "enable_auto_login": {"type": "boolean"},
+        "enable_passwordless_sudo": {"type": "boolean"},
+        "enable_ssh": {"type": "boolean"},
+        "enable_vnc": {"type": "boolean"}
+      }
+    },
+    "paths": {
+      "type": "object",
+      "required": ["ard_agent", "launchd_overrides", "screen_sharing_plist", "sudoers_dir", "software_update_prefs", "login_window_prefs"],
+      "properties": {
+        "ard_agent": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to ARD agent"
+        },
+        "launchd_overrides": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to launchd overrides"
+        },
+        "screen_sharing_plist": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to screen sharing plist"
+        },
+        "sudoers_dir": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to sudoers directory"
+        },
+        "software_update_prefs": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to software update preferences"
+        },
+        "login_window_prefs": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to login window preferences"
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "required": ["min_disk_space_gb", "min_memory_gb", "required_macos_version", "required_tools"],
+      "properties": {
+        "min_disk_space_gb": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum disk space required (GB)"
+        },
+        "min_memory_gb": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum system memory required (GB)"
+        },
+        "required_macos_version": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 20,
+          "description": "Minimum macOS major version required"
+        },
+        "required_tools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "description": "List of required command-line tools"
+        }
+      }
+    },
+    "build": {
+      "type": "object",
+      "required": ["default_packer_file", "headless_mode", "enable_vnc_headless", "colors", "verbose_validation", "packer_files"],
+      "properties": {
+        "default_packer_file": {
+          "type": "string",
+          "pattern": "\\.pkr\\.hcl$",
+          "description": "Default Packer file to use"
+        },
+        "headless_mode": {
+          "type": "boolean",
+          "description": "Run VMs in headless mode"
+        },
+        "enable_vnc_headless": {
+          "type": "boolean",
+          "description": "Enable VNC when running headless"
+        },
+        "colors": {
+          "type": "boolean",
+          "description": "Enable colored output"
+        },
+        "verbose_validation": {
+          "type": "boolean",
+          "description": "Enable verbose validation output"
+        },
+        "packer_files": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["file", "description"],
+            "properties": {
+              "file": {
+                "type": "string",
+                "pattern": "\\.pkr\\.hcl$"
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

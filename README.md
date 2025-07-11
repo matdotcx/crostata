@@ -285,33 +285,187 @@ Packer provides detailed logs during build. Monitor output for specific error me
 ├── .gitignore                       # Security-focused git excludes
 ├── validate-setup.sh                # Pre-build environment validation script
 ├── build-with-1password.sh          # Main build script with 1Password integration
+├── validate-config.py               # Configuration validation script
 ├── vm-vanilla-custom-user.pkr.hcl   # Vanilla VM with custom user only (default)
 ├── vm-ipsw-1password.pkr.hcl        # IPSW-based VM manifest (clean install)
 ├── vm-container-1password.pkr.hcl   # Container-based VM with 1Password
-└── vm-config.pkrvars.hcl            # Configuration variables (non-sensitive only)
+└── config/
+    ├── default.toml                 # Centralized configuration file
+    └── schema.json                  # JSON schema for configuration validation
 ```
 
-**Note:** The `.pkrvars.hcl` file is included for configuration examples but ignored by git for security. Do not store credentials there - use 1Password instead.
+**Configuration Management:**
+- `config/default.toml` - All hardcoded values moved to centralized configuration
+- `config/schema.json` - Type-safe validation schema for configurations
+- `validate-config.py` - Validates configuration files against schema
+- Environment variables provide runtime overrides without file modification
 
-## Advanced Configuration
+## Configuration Management
 
-### Custom IPSW Sources
-Edit `vm-ipsw-1password.pkr.hcl` to specify:
-- **Specific URL**: Replace `default = "latest"` with IPSW URL
-- **Local file**: Use path like `~/Downloads/macOS.ipsw`
+### Centralized Configuration
+The VM builder uses a centralized TOML configuration file at `config/default.toml` that eliminates hardcoded values and makes the system highly configurable.
 
-### Resource Allocation
-Modify variables in manifest files:
-- `cpu_count`: CPU cores
-- `memory_gb`: RAM in gigabytes  
-- `disk_size_gb`: Disk space in gigabytes
+**Key benefits:**
+- **No hardcoded values**: All configuration centralized in `config/default.toml`
+- **Environment overrides**: Override any setting with environment variables
+- **Type safety**: JSON schema validation ensures configuration correctness
+- **Backward compatibility**: Falls back to original defaults if config missing
 
-### System Optimizations
-Shell provisioners can be customized to:
-- Add development tools
-- Configure network settings
-- Install additional software
-- Modify system preferences
+### Configuration File Structure
+
+```toml
+[onepassword]
+vault = "Private"                    # 1Password vault name
+item = "Packer Automations"         # 1Password item name
+username_field = "username"         # Field names within the item
+password_field = "password"
+public_key_field = "public key"
+
+[vm.defaults]
+name = "custom-vm"                   # Default VM name
+cpu_count = 4                        # Number of CPU cores
+memory_gb = 8                        # Memory in GB
+disk_size_gb = 50                    # Disk size in GB
+
+[vm.vanilla]
+base_image = "ghcr.io/cirruslabs/macos-sequoia-vanilla:latest"
+default_username = "admin"           # Default vanilla image credentials
+default_password = "admin"
+
+[vm.ipsw]
+url = "latest"                       # IPSW source: "latest", URL, or local path
+
+[packer]
+tart_version_vanilla = ">= 0.5.3"    # Plugin versions for different builds
+tart_version_ipsw = ">= 1.12.0"
+tart_source = "github.com/cirruslabs/tart"
+log_level = "1"                      # 0=quiet, 1=verbose
+
+[ssh]
+timeout_vanilla = "120s"             # SSH timeouts for different builds
+timeout_ipsw = "1200s"
+timeout_container = "120s"
+
+[timing]
+system_settle_delay = 10             # Various timing configurations
+initial_wait = 30
+connection_retry_delay = 5
+boot_wait = "180s"                   # IPSW-specific boot timing
+boot_key_interval = "50ms"
+
+[system]
+disable_sleep = true                 # System optimization flags
+disable_spotlight = true
+enable_ssh = true
+enable_vnc = true
+# ... more system settings
+
+[build]
+default_packer_file = "vm-vanilla-custom-user.pkr.hcl"
+headless_mode = true
+colors = true                        # Enable colored output
+```
+
+### Environment Variable Overrides
+
+Override any configuration value using environment variables:
+
+```bash
+# Override VM configuration
+VM_NAME_OVERRIDE="dev-vm" ./build-with-1password.sh
+
+# Use custom configuration file
+CONFIG_FILE="config/production.toml" ./build-with-1password.sh
+
+# Override 1Password settings
+OP_VAULT_OVERRIDE="Development" ./build-with-1password.sh
+
+# Override Packer file
+PACKER_FILE_OVERRIDE="vm-ipsw-1password.pkr.hcl" ./build-with-1password.sh
+```
+
+### Configuration Validation
+
+Validate your configuration against the JSON schema:
+
+```bash
+# Basic validation
+python3 validate-config.py
+
+# Verbose validation with detailed output
+python3 validate-config.py --verbose
+
+# Custom config and schema files
+python3 validate-config.py --config config/custom.toml --schema config/schema.json
+```
+
+### Creating Custom Configurations
+
+1. **Copy the default configuration:**
+   ```bash
+   cp config/default.toml config/production.toml
+   ```
+
+2. **Modify settings for your environment:**
+   ```toml
+   [vm.defaults]
+   cpu_count = 8        # More powerful VMs
+   memory_gb = 16
+   
+   [onepassword]
+   vault = "Development"  # Different 1Password vault
+   
+   [build]
+   colors = false       # Disable colors for CI/CD
+   ```
+
+3. **Use the custom configuration:**
+   ```bash
+   CONFIG_FILE="config/production.toml" ./build-with-1password.sh
+   ```
+
+### Advanced Customization
+
+#### Custom IPSW Sources
+Configure IPSW downloads in `config/default.toml`:
+```toml
+[vm.ipsw]
+# Use latest macOS (default)
+url = "latest"
+
+# Use specific IPSW URL
+url = "https://updates.cdn-apple.com/2025SpringFCS/fullrestores/082-16517/AACDDC33-9683-4431-98AF-F04EF7C15EE3/UniversalMac_15.4_24E248_Restore.ipsw"
+
+# Use local IPSW file
+url = "~/Downloads/UniversalMac_15.4_24E248_Restore.ipsw"
+```
+
+#### Resource Allocation
+Customize VM resources globally or per environment:
+```toml
+[vm.defaults]
+cpu_count = 8        # 8 CPU cores
+memory_gb = 16       # 16GB RAM
+disk_size_gb = 100   # 100GB disk
+```
+
+#### Timing Adjustments
+Fine-tune automation timing for reliability:
+```toml
+[timing]
+system_settle_delay = 15    # Wait longer for slow systems
+boot_wait = "300s"          # 5 minutes for IPSW boot
+ssh_timeout_ipsw = "1800s"  # 30 minutes for SSH
+```
+
+#### Plugin Versions
+Pin specific plugin versions for reproducibility:
+```toml
+[packer]
+tart_version_vanilla = ">= 0.5.3"
+tart_version_ipsw = ">= 1.12.0"
+log_level = "0"  # Quiet builds for CI/CD
+```
 
 ## Contributing
 
