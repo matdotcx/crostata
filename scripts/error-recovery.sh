@@ -144,13 +144,26 @@ collect_system_diagnostics() {
         echo "  },"
         echo "  \"network_status\": {"
         echo "    \"interfaces\": ["
-        networksetup -listallhardwareports | grep "Hardware Port" | while read -r line; do
-            port=$(echo "$line" | sed 's/Hardware Port: //')
-            echo "      \"$port\""
-        done | head -3
+        # Use networksetup (macOS native) with fallback
+        if command -v networksetup >/dev/null 2>&1; then
+            networksetup -listallhardwareports 2>/dev/null | grep "Hardware Port" | while read -r line; do
+                port=$(echo "$line" | sed 's/Hardware Port: //')
+                echo "      \"$port\""
+            done | head -3
+        else
+            # Fallback to interface listing if networksetup fails
+            ifconfig -l 2>/dev/null | tr ' ' '\n' | head -3 | sed 's/^/      "/' | sed 's/$/"/'
+        fi
         echo "    ],"
         echo "    \"dns_servers\": ["
-        scutil --dns | grep nameserver | head -3 | awk '{print "      \"" $3 "\""}'
+        # Use scutil (macOS native) with fallback
+        if command -v scutil >/dev/null 2>&1; then
+            scutil --dns 2>/dev/null | grep nameserver | head -3 | awk '{print "      \"" $3 "\""}' || echo "      \"8.8.8.8\""
+        else
+            # Fallback to common DNS servers
+            echo "      \"8.8.8.8\""
+            echo "      \"1.1.1.1\""
+        fi
         echo "    ]"
         echo "  },"
         echo "  \"disk_usage\": {"
@@ -164,10 +177,10 @@ collect_system_diagnostics() {
         echo "  \"processes\": {"
         echo "    \"total_count\": $(ps aux | wc -l),"
         echo "    \"high_cpu\": ["
-        ps aux --sort=-%cpu | head -5 | tail -4 | awk '{print "      {\"pid\": " $2 ", \"cpu\": " $3 ", \"command\": \"" $11 "\"}"}'
+        ps aux | sort -rn -k 3 | head -5 | tail -4 | awk '{print "      {\"pid\": " $2 ", \"cpu\": " $3 ", \"command\": \"" $11 "\"}"}'
         echo "    ],"
         echo "    \"high_memory\": ["
-        ps aux --sort=-%mem | head -5 | tail -4 | awk '{print "      {\"pid\": " $2 ", \"mem\": " $4 ", \"command\": \"" $11 "\"}"}'
+        ps aux | sort -rn -k 4 | head -5 | tail -4 | awk '{print "      {\"pid\": " $2 ", \"mem\": " $4 ", \"command\": \"" $11 "\"}"}'
         echo "    ]"
         echo "  }"
         echo "}"
@@ -443,8 +456,8 @@ validate_ssh() {
         retry_with_backoff 3 2 "sudo launchctl load -w /System/Library/LaunchDaemons/ssh.plist"
     fi
     
-    # Check if SSH port is listening
-    if ! netstat -an | grep :22 | grep -q LISTEN; then
+    # Check if SSH port is listening (macOS-compatible)
+    if ! netstat -an | grep -E '(tcp|tcp4|tcp6).*\.22[[:space:]].*LISTEN' >/dev/null 2>&1; then
         error "SSH port 22 is not listening"
         return 1
     fi
@@ -457,8 +470,8 @@ validate_ssh() {
 validate_vnc() {
     log "Validating VNC/Screen Sharing service..."
     
-    # Check if screen sharing is enabled
-    if ! netstat -an | grep :5900 | grep -q LISTEN; then
+    # Check if screen sharing is enabled (macOS-compatible)
+    if ! netstat -an | grep -E '(tcp|tcp4|tcp6).*\.5900[[:space:]].*LISTEN' >/dev/null 2>&1; then
         warn "VNC port not listening, attempting to enable screen sharing..."
         
         # Enable screen sharing with retry
@@ -471,7 +484,7 @@ validate_vnc() {
         sleep 5  # Give service time to start
     fi
     
-    if netstat -an | grep :5900 | grep -q LISTEN; then
+    if netstat -an | grep -E '(tcp|tcp4|tcp6).*\.5900[[:space:]].*LISTEN' >/dev/null 2>&1; then
         success "VNC service is running and accessible"
         return 0
     else
@@ -504,7 +517,7 @@ validate_system_health() {
     # Check load average
     local load_avg
     load_avg=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | sed 's/,//')
-    if (( $(echo "$load_avg > 10" | bc -l) )); then
+    if (( $(echo "$load_avg > 10" | bc -l 2>/dev/null || echo "0") )); then
         warn "High system load detected: $load_avg"
     fi
     
@@ -650,7 +663,7 @@ validate_vnc_advanced() {
     
     # Wait for service to start and test again
     sleep 5
-    if netstat -an | grep :5900 | grep -q LISTEN; then
+    if netstat -an | grep -E '(tcp|tcp4|tcp6).*\.5900[[:space:]].*LISTEN' >/dev/null 2>&1; then
         success "VNC service recovered successfully"
         return 0
     else

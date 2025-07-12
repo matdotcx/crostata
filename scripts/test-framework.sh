@@ -20,6 +20,22 @@ TEST_RESULTS_FILE="$TEST_LOG_DIR/test-results-$(date +%Y%m%d-%H%M%S).json"
 INTEGRATION_LOG="$TEST_LOG_DIR/integration-test.log"
 PERFORMANCE_TEST_LOG="$TEST_LOG_DIR/performance-test.log"
 
+# Cross-platform timeout function
+# On macOS, GNU coreutils timeout is 'gtimeout'
+# On Linux, it's usually just 'timeout'
+get_timeout_command() {
+    if command -v gtimeout >/dev/null 2>&1; then
+        echo "gtimeout"
+    elif command -v timeout >/dev/null 2>&1; then
+        echo "timeout"
+    else
+        echo ""
+    fi
+}
+
+# Get the appropriate timeout command for this system
+TIMEOUT_CMD=$(get_timeout_command)
+
 # Test counters
 TESTS_RUN=0
 TESTS_PASSED=0
@@ -153,12 +169,24 @@ assert_command_success() {
     local test_name="$2"
     local timeout="${3:-$TIMEOUT_SECONDS}"
     
-    if timeout "$timeout" bash -c "$command" >/dev/null 2>&1; then
-        log_test "PASS" "$test_name: Command '$command' executed successfully"
-        return 0
+    # Check if timeout command is available
+    if [ -z "$TIMEOUT_CMD" ]; then
+        log_test "WARN" "$test_name: No timeout command available (timeout/gtimeout), running without timeout"
+        if bash -c "$command" >/dev/null 2>&1; then
+            log_test "PASS" "$test_name: Command '$command' executed successfully"
+            return 0
+        else
+            log_test "FAIL" "$test_name: Command '$command' failed"
+            return 1
+        fi
     else
-        log_test "FAIL" "$test_name: Command '$command' failed or timed out"
-        return 1
+        if "$TIMEOUT_CMD" "$timeout" bash -c "$command" >/dev/null 2>&1; then
+            log_test "PASS" "$test_name: Command '$command' executed successfully"
+            return 0
+        else
+            log_test "FAIL" "$test_name: Command '$command' failed or timed out"
+            return 1
+        fi
     fi
 }
 

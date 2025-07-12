@@ -1,6 +1,36 @@
 #!/bin/bash
 set -euo pipefail
 
+# Early argument parsing for --help
+for arg in "$@"; do
+    case $arg in
+        --help|-h)
+            echo "🔐 Tart VM Builder with 1Password"
+            echo "=================================="
+            echo ""
+            echo "Usage: $0 [packer-file] [vm-name]"
+            echo "  packer-file: vm-vanilla-custom-user.pkr.hcl (default, recommended)"
+            echo "               vm-container-1password.pkr.hcl (vanilla, keeps default user)"
+            echo "               vm-ipsw-1password.pkr.hcl (fresh install, less reliable)"
+            echo ""
+            echo "Environment variable overrides:"
+            echo "  CONFIG_FILE - Custom config file path"
+            echo "  VM_NAME_OVERRIDE - Override VM name"
+            echo "  PACKER_FILE_OVERRIDE - Override Packer file"
+            echo "  OP_VAULT_OVERRIDE - Override 1Password vault"
+            echo "  OP_ITEM_OVERRIDE - Override 1Password item"
+            echo "  OP_ACCOUNT_OVERRIDE - Override 1Password account"
+            echo ""
+            echo "Examples:"
+            echo "  $0 --help                     # Show this help"
+            echo "  $0                            # Use defaults from config"
+            echo "  $0 vm-vanilla-custom-user.pkr.hcl my-vm  # Specify file and name"
+            echo ""
+            exit 0
+            ;;
+    esac
+done
+
 # Configuration loading
 CONFIG_FILE="${CONFIG_FILE:-config/default.toml}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,7 +44,12 @@ import sys
 try:
     import tomllib
 except ImportError:
-    import tomli as tomllib
+    try:
+        import tomli as tomllib
+    except ImportError:
+        print('Error: Neither tomllib nor tomli is available', file=sys.stderr)
+        print('Install with: pip3 install tomli', file=sys.stderr)
+        sys.exit(1)
 
 try:
     with open('$CONFIG_PATH', 'rb') as f:
@@ -45,6 +80,7 @@ load_config() {
         # 1Password configuration
         OP_VAULT="$(parse_config 'onepassword.vault')"
         OP_ITEM="$(parse_config 'onepassword.item')"
+        OP_ACCOUNT="$(parse_config 'onepassword.account')"
         OP_USERNAME_FIELD="$(parse_config 'onepassword.username_field')"
         OP_PASSWORD_FIELD="$(parse_config 'onepassword.password_field')"
         OP_PUBLIC_KEY_FIELD="$(parse_config 'onepassword.public_key_field')"
@@ -63,6 +99,7 @@ load_config() {
         VM_NAME="${2:-custom-vm}"
         OP_VAULT="Private"
         OP_ITEM="Packer Automations"
+        OP_ACCOUNT="iaconelli.1password.com"
         OP_USERNAME_FIELD="username"
         OP_PASSWORD_FIELD="password"
         OP_PUBLIC_KEY_FIELD="public key"
@@ -93,6 +130,7 @@ VM_NAME="${VM_NAME_OVERRIDE:-$VM_NAME}"
 PACKER_FILE="${PACKER_FILE_OVERRIDE:-$PACKER_FILE}"
 OP_VAULT="${OP_VAULT_OVERRIDE:-$OP_VAULT}"
 OP_ITEM="${OP_ITEM_OVERRIDE:-$OP_ITEM}"
+OP_ACCOUNT="${OP_ACCOUNT_OVERRIDE:-$OP_ACCOUNT}"
 
 # Configuration validation function
 validate_config() {
@@ -133,18 +171,6 @@ echo "Packer file: $PACKER_FILE"
 echo "VM name: $VM_NAME"
 echo "1Password: $OP_VAULT/$OP_ITEM"
 echo ""
-echo "Usage: $0 [packer-file] [vm-name]"
-echo "  packer-file: vm-vanilla-custom-user.pkr.hcl (default, recommended)"
-echo "               vm-container-1password.pkr.hcl (vanilla, keeps default user)"
-echo "               vm-ipsw-1password.pkr.hcl (fresh install, less reliable)"
-echo ""
-echo "Environment variable overrides:"
-echo "  CONFIG_FILE - Custom config file path"
-echo "  VM_NAME_OVERRIDE - Override VM name"
-echo "  PACKER_FILE_OVERRIDE - Override Packer file"
-echo "  OP_VAULT_OVERRIDE - Override 1Password vault"
-echo "  OP_ITEM_OVERRIDE - Override 1Password item"
-echo ""
 
 # Validate configuration
 echo -e "${YELLOW}Validating configuration...${NC}"
@@ -179,9 +205,9 @@ OP_USERNAME_PATH="op://$OP_VAULT/$OP_ITEM/$OP_USERNAME_FIELD"
 OP_PASSWORD_PATH="op://$OP_VAULT/$OP_ITEM/$OP_PASSWORD_FIELD"  
 OP_PUBLIC_KEY_PATH="op://$OP_VAULT/$OP_ITEM/$OP_PUBLIC_KEY_FIELD"
 
-export PKR_VAR_ssh_username="$(op read "$OP_USERNAME_PATH")"
-export PKR_VAR_ssh_password="$(op read "$OP_PASSWORD_PATH")"
-export PKR_VAR_ssh_public_key="$(op read "$OP_PUBLIC_KEY_PATH")"
+export PKR_VAR_ssh_username="$(op read "$OP_USERNAME_PATH" --account "$OP_ACCOUNT")"
+export PKR_VAR_ssh_password="$(op read "$OP_PASSWORD_PATH" --account "$OP_ACCOUNT")"
+export PKR_VAR_ssh_public_key="$(op read "$OP_PUBLIC_KEY_PATH" --account "$OP_ACCOUNT")"
 echo -e "${GREEN}✓ Credentials retrieved successfully${NC}"
 # Initialize Packer
 echo -e "\n${YELLOW}Initializing Packer...${NC}"

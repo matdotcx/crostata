@@ -79,17 +79,17 @@ log_message() {
 
 # Performance tracking
 start_timer() {
-    echo $(date +%s%3N)
+    echo $(date +%s)
 }
 
 end_timer() {
     local start_time="$1"
     local operation="$2"
-    local end_time=$(date +%s%3N)
+    local end_time=$(date +%s)
     local duration=$((end_time - start_time))
     
-    PERFORMANCE_DATA+=("$operation: ${duration}ms")
-    log_message "PERF" "$operation completed in ${duration}ms"
+    PERFORMANCE_DATA+=("$operation: ${duration}s")
+    log_message "PERF" "$operation completed in ${duration}s"
 }
 
 # Enhanced version checking
@@ -377,7 +377,7 @@ if [ "$FULL_CHECK" = true ]; then
     
     # Check system python versus homebrew python
     if command -v python3 >/dev/null 2>&1; then
-        local python_path=$(which python3)
+        python_path=$(which python3)
         if [[ "$python_path" == *"/usr/bin/python3" ]]; then
             log_message "DEBUG" "Using system Python: $python_path"
         else
@@ -393,11 +393,11 @@ if op account list &> /dev/null; then
     report_test "1Password authentication" true ""
     
     # Check if required item exists
-    if op item get "Packer Automations" --vault Private &> /dev/null; then
+    if op item get "Packer Automations" --vault Private --account iaconelli.1password.com &> /dev/null; then
         report_test "1Password item 'Packer Automations' exists" true ""
         
         # Check required fields exist
-        ITEM_JSON=$(op item get "Packer Automations" --vault Private --format json)
+        ITEM_JSON=$(op item get "Packer Automations" --vault Private --account iaconelli.1password.com --format json)
         
         # Check for username field
         if echo "$ITEM_JSON" | jq -e '.fields[] | select(.label == "username")' &> /dev/null; then
@@ -418,7 +418,7 @@ if op account list &> /dev/null; then
             report_test "1Password item has 'public key' field" true ""
             
             # Validate SSH key format
-            PUBLIC_KEY=$(op read 'op://Private/Packer Automations/public key' 2>/dev/null || echo "")
+            PUBLIC_KEY=$(op read 'op://Private/Packer Automations/public key' --account iaconelli.1password.com 2>/dev/null || echo "")
             if [ -n "$PUBLIC_KEY" ]; then
                 # Basic SSH key format validation
                 if echo "$PUBLIC_KEY" | grep -E '^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ecdsa-sha2-nistp521) [A-Za-z0-9+/]+=*' &> /dev/null; then

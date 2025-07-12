@@ -221,8 +221,8 @@ variable "initial_wait" {
 packer {
   required_plugins {
     tart = {
-      version = var.tart_version != null ? var.tart_version : ">= 1.12.0"
-      source  = var.tart_source != null ? var.tart_source : "github.com/cirruslabs/tart"
+      version = ">= 1.12.0"
+      source  = "github.com/cirruslabs/tart"
     }
   }
 }

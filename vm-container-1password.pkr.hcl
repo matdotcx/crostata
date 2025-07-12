@@ -81,8 +81,8 @@ variable "headless_mode" {
 packer {
   required_plugins {
     tart = {
-      version = var.tart_version != null ? var.tart_version : ">= 0.5.3"
-      source  = var.tart_source != null ? var.tart_source : "github.com/cirruslabs/tart"
+      version = ">= 0.5.3"
+      source  = "github.com/cirruslabs/tart"
     }
   }
 }

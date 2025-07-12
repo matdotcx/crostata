@@ -622,14 +622,31 @@ git checkout HEAD -- config/
 
 # Regenerate default configuration
 python3 -c "
-import toml
+try:
+    import tomllib
+except ImportError:
+    try:
+        import tomli as tomllib
+    except ImportError:
+        print('Error: Neither tomllib nor tomli is available')
+        print('Install with: pip3 install tomli')
+        exit(1)
+
+# Note: Use tomli_w for writing TOML files
+try:
+    import tomli_w
+except ImportError:
+    print('Error: tomli_w not available for writing TOML')
+    print('Install with: pip3 install tomli_w')
+    exit(1)
+
 config = {
     'build': {'timeout_minutes': 30},
     'vm': {'memory_gb': 4, 'cpu_cores': 2},
     'paths': {'temp_dir': '/tmp', 'cache_dir': '~/.cache'}
 }
-with open('config/default.toml', 'w') as f:
-    toml.dump(config, f)
+with open('config/default.toml', 'wb') as f:
+    tomli_w.dump(config, f)
 "
 ```
 

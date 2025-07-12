@@ -3,6 +3,7 @@
 *.auto.pkrvars.hcl
 *-credentials.*
 *-secrets.*
+*.md
 
 # Environment files
 .env
@@ -20,6 +21,7 @@ output-*/
 # Temporary files
 *.tmp
 *.temp
+*.log
 
 # Build logs
 packer-build-*.log

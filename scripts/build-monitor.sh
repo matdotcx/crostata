@@ -221,10 +221,12 @@ monitor_system_resources() {
         cpu_total=$(echo "$cpu_total + $cpu_usage" | bc -l 2>/dev/null || echo "$cpu_total")
         
         # Memory usage
-        local memory_info=$(vm_stat | grep -E "(free|active|inactive|wired)" | awk '{print $3}' | sed 's/\.//')
+        local memory_info=$(vm_stat | grep -E "(free|active|inactive|wired)" | awk '{print $3}' | sed 's/[^0-9]//g')
         local memory_used=0
         for mem in $memory_info; do
-            memory_used=$((memory_used + mem))
+            if [[ "$mem" =~ ^[0-9]+$ ]]; then
+                memory_used=$((memory_used + mem))
+            fi
         done
         memory_used=$((memory_used * 4096 / 1024 / 1024))  # Convert to MB
         
@@ -270,19 +272,30 @@ monitor_disk_usage() {
 
 # Network monitoring
 monitor_network_activity() {
-    local interface=$(route get default | grep interface | awk '{print $2}')
-    local initial_bytes=$(netstat -I "$interface" | tail -1 | awk '{print $7}' || echo "0")
+    # macOS-compatible method to get default interface
+    local interface=$(route get default 2>/dev/null | grep interface | awk '{print $2}' || \
+                     netstat -rn | grep '^default' | head -1 | awk '{print $6}' || echo "en0")
+    
+    # macOS-compatible method to get network statistics
+    local initial_bytes=$(netstat -I "$interface" -b 2>/dev/null | tail -1 | awk '{print $7}' || \
+                         netstat -I "$interface" 2>/dev/null | tail -1 | awk '{print $7}' || echo "0")
     
     PERFORMANCE_COUNTERS["network_initial_bytes"]="$initial_bytes"
     
     # Function to get network bytes downloaded
     get_network_delta() {
-        local current_bytes=$(netstat -I "$interface" | tail -1 | awk '{print $7}' || echo "0")
+        local current_bytes=$(netstat -I "$interface" -b 2>/dev/null | tail -1 | awk '{print $7}' || \
+                             netstat -I "$interface" 2>/dev/null | tail -1 | awk '{print $7}' || echo "0")
         local delta=$((current_bytes - initial_bytes))
         echo "$delta"
     }
     
     log_metric "DEBUG" "Network monitoring initialized on interface $interface, baseline: ${initial_bytes} bytes"
+    
+    # Fallback: If interface detection fails, warn but continue
+    if [ "$interface" = "" ] || [ "$initial_bytes" = "0" ]; then
+        log_metric "WARN" "Network monitoring may be inaccurate - interface detection or statistics failed"
+    fi
 }
 
 # Alert system
@@ -500,12 +513,12 @@ compare_with_baseline() {
     local baseline_build_time=$(jq -r '.expected_performance.typical_build_time_minutes * 60' "$PERFORMANCE_BASELINE_FILE")
     local actual_build_time="$TOTAL_BUILD_TIME"
     
-    if [ -n "$actual_build_time" ] && [ -n "$baseline_build_time" ]; then
-        local performance_ratio=$(echo "scale=2; $actual_build_time / $baseline_build_time" | bc -l)
+    if [ -n "$actual_build_time" ] && [ -n "$baseline_build_time" ] && [ "$baseline_build_time" != "0" ]; then
+        local performance_ratio=$(echo "scale=2; $actual_build_time / $baseline_build_time" | bc -l 2>/dev/null || echo "1.0")
         
-        if (( $(echo "$performance_ratio > 1.5" | bc -l) )); then
+        if (( $(echo "$performance_ratio > 1.5" | bc -l 2>/dev/null || echo "0") )); then
             create_alert "SLOW_BUILD" "Build took ${actual_build_time}s, expected around ${baseline_build_time}s (ratio: $performance_ratio)"
-        elif (( $(echo "$performance_ratio < 0.7" | bc -l) )); then
+        elif (( $(echo "$performance_ratio < 0.7" | bc -l 2>/dev/null || echo "0") )); then
             log_metric "SUCCESS" "Build completed faster than expected (ratio: $performance_ratio)"
         else
             log_metric "INFO" "Build performance within expected range (ratio: $performance_ratio)"

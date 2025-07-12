@@ -5,6 +5,7 @@
 # 1Password vault and item configuration
 vault = "Private"
 item = "Packer Automations"
+account = "iaconelli.1password.com"  # Account URL for multi-account setups
 
 # Field names within the 1Password item
 username_field = "username"

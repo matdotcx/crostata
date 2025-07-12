@@ -280,7 +280,8 @@ validate_network_security() {
     local suspicious_ports=("21" "23" "135" "139" "445" "1433" "3389")
     
     for port in "${suspicious_ports[@]}"; do
-        if netstat -an | grep ":$port " | grep -q LISTEN; then
+        # macOS-compatible port checking with better pattern matching
+        if netstat -an | grep -E "(tcp|tcp4|tcp6).*[.:]${port}[[:space:]].*LISTEN" >/dev/null 2>&1; then
             log_security "WARN" "Potentially insecure service listening on port $port"
             security_issues=$((security_issues + 1))
         fi
@@ -296,12 +297,17 @@ validate_network_security() {
         fi
     fi
     
-    # Check DNS configuration
-    local dns_servers=$(scutil --dns | grep nameserver | head -3 | awk '{print $3}')
-    if [ -n "$dns_servers" ]; then
-        log_security "INFO" "DNS servers configured: $(echo "$dns_servers" | tr '\n' ' ')"
+    # Check DNS configuration (macOS native with fallback)
+    if command -v scutil >/dev/null 2>&1; then
+        local dns_servers=$(scutil --dns 2>/dev/null | grep nameserver | head -3 | awk '{print $3}')
+        if [ -n "$dns_servers" ]; then
+            log_security "INFO" "DNS servers configured: $(echo "$dns_servers" | tr '\n' ' ')"
+        else
+            log_security "WARN" "No DNS servers detected via scutil"
+            security_issues=$((security_issues + 1))
+        fi
     else
-        log_security "WARN" "No DNS servers detected"
+        log_security "WARN" "scutil not available for DNS configuration check"
         security_issues=$((security_issues + 1))
     fi
     
@@ -371,10 +377,10 @@ optimize_system_resources() {
     # Process optimization
     log_security "INFO" "Checking for resource-intensive processes..."
     
-    local high_cpu_processes=$(ps aux --sort=-%cpu | head -5 | tail -4 | awk '$3 > 80 {print $2, $11}' | wc -l)
+    local high_cpu_processes=$(ps aux | sort -rn -k 3 | head -5 | tail -4 | awk '$3 > 80 {print $2, $11}' | wc -l)
     if [ "$high_cpu_processes" -gt 0 ]; then
         log_security "WARN" "Found $high_cpu_processes high CPU usage processes"
-        ps aux --sort=-%cpu | head -5 | tail -4 | awk '$3 > 80 {print "PID " $2 ": " $11 " (" $3 "% CPU)"}' | while read -r line; do
+        ps aux | sort -rn -k 3 | head -5 | tail -4 | awk '$3 > 80 {print "PID " $2 ": " $11 " (" $3 "% CPU)"}' | while read -r line; do
             log_security "WARN" "High CPU: $line"
         done
     fi
